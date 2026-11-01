@@ -2,17 +2,18 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>像素机甲竞技场 · PIXEL MECH ARENA</title>
 <style>
   *{box-sizing:border-box;}
   html,body{
-    margin:0;height:100%;overflow:hidden;
+    margin:0;height:100%;overflow:hidden;overscroll-behavior:none;
     background:radial-gradient(1200px 620px at 50% 18%,#141e2d 0%,#070b12 58%,#04060a 100%);
     color:#b9cde0;font-family:"Courier New",ui-monospace,monospace;
     display:flex;align-items:center;justify-content:center;user-select:none;
+    -webkit-tap-highlight-color:transparent;touch-action:manipulation;
   }
-  #stage{display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px;}
+  #stage{display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px;width:100%;}
   .title{font-size:13px;letter-spacing:5px;color:#5a7c96;}
   .title b{color:#8fe3ff;text-shadow:0 0 14px rgba(80,220,255,.65);}
   canvas{
@@ -28,6 +29,45 @@
     border-radius:3px;font-family:inherit;font-size:10px;
   }
   .tip{font-size:10px;color:#486075;letter-spacing:1px;}
+
+  /* ---- 触屏虚拟按键 ---- */
+  .pad{
+    display:none;width:100%;max-width:560px;align-items:center;justify-content:space-between;
+    gap:12px;padding:0 6px;touch-action:none;
+  }
+  .show-pad .pad{display:flex;}
+  .show-pad .keys{display:none;}
+  .pad-group{display:flex;gap:10px;}
+  .btn{
+    -webkit-appearance:none;appearance:none;touch-action:none;
+    width:66px;height:66px;border-radius:16px;padding:0;
+    background:rgba(18,32,46,.85);border:2px solid #2a4a63;color:#bfe6ff;
+    font-family:inherit;font-size:15px;letter-spacing:1px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 3px 0 #0b1a24, inset 0 0 12px rgba(60,190,255,.12);
+    transition:transform .04s,background .08s,border-color .08s;
+  }
+  .btn:active,.btn.on{
+    background:rgba(48,124,178,.92);border-color:#5fd8ff;color:#fff;
+    box-shadow:0 1px 0 #0b1a24, inset 0 0 20px rgba(90,220,255,.45);
+    transform:translateY(2px);
+  }
+  .btn.arrow{font-size:24px;}
+  .btn.atk{border-color:#7a3a3a;color:#ffd7c9;background:rgba(52,20,20,.85);}
+  .btn.atk:active,.btn.atk.on{background:rgba(158,54,42,.95);border-color:#ff8a6a;color:#fff;}
+  .btn.shield{border-color:#3f6d5e;color:#c6ffe8;background:rgba(16,44,38,.85);}
+  .btn.shield:active,.btn.shield.on{background:rgba(34,110,92,.95);border-color:#6dffcd;color:#fff;}
+
+  @media (max-width:760px){
+    #stage{gap:8px;padding:8px;}
+    .title{font-size:11px;letter-spacing:3px;}
+    .tip{font-size:9px;}
+  }
+  @media (max-height:560px){
+    #stage{gap:6px;padding:6px;}
+    .title,.tip{display:none;}
+    .btn{width:56px;height:56px;border-radius:13px;}
+  }
 </style>
 </head>
 <body>
@@ -43,6 +83,17 @@
     <span><kbd>M</kbd>静音</span>
   </div>
   <div class="tip">击破对手的装甲核心 · 防御可削减 75% 伤害但无法移动</div>
+  <div id="pad" class="pad">
+    <div class="pad-group">
+      <button type="button" class="btn arrow" data-act="left" aria-label="向左移动">◀</button>
+      <button type="button" class="btn arrow" data-act="right" aria-label="向右移动">▶</button>
+    </div>
+    <div class="pad-group">
+      <button type="button" class="btn shield" data-act="block" aria-label="防御">防</button>
+      <button type="button" class="btn atk" data-act="shot" aria-label="能量炮">炮</button>
+      <button type="button" class="btn atk" data-act="melee" aria-label="光刃">刃</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -77,16 +128,27 @@ const ctx = canvas.getContext('2d');
 canvas.width = W; canvas.height = H;
 ctx.imageSmoothingEnabled = false;
 
+const IS_TOUCH = ('ontouchstart' in window) || window.matchMedia('(pointer: coarse)').matches;
+
 function fitCanvas(){
-  const s = Math.max(1, Math.min(
-    Math.floor((window.innerWidth - 32) / W),
-    Math.floor((window.innerHeight - 118) / H)
-  ));
-  canvas.style.width  = (W * s) + 'px';
-  canvas.style.height = (H * s) + 'px';
+  const showPad = document.body.classList.contains('show-pad');
+  const availW = Math.max(180, window.innerWidth - 18);
+  const availH = Math.max(120, window.innerHeight - (showPad ? 96 + 90 : 118));
+  let s = Math.min(availW / W, availH / H);
+  s = s >= 1 ? Math.floor(s) : Math.max(0.55, s);
+  canvas.style.width  = Math.round(W * s) + 'px';
+  canvas.style.height = Math.round(H * s) + 'px';
 }
-window.addEventListener('resize', fitCanvas);
-fitCanvas();
+
+function updateLayout(){
+  // 触屏设备，或窄窗口（可用鼠标点击按钮）时显示虚拟按键
+  document.body.classList.toggle('show-pad', IS_TOUCH || window.innerWidth < 760);
+  fitCanvas();
+}
+
+window.addEventListener('resize', updateLayout);
+window.addEventListener('orientationchange', () => setTimeout(updateLayout, 120));
+updateLayout();
 
 /* =========================================================
    2. 工具
@@ -313,6 +375,10 @@ let player, enemy;
 const shots = [];
 const particles = [];
 
+// 触屏输入状态（持续按住 / 单次触发）
+const touchState = { left:false, right:false, block:false };
+const touchEdge  = { melee:false, shot:false };
+
 const game = {
   state: 'ready',   // ready | fight | over
   readyT: 0,
@@ -339,6 +405,8 @@ function reset(){
   game.shake = 0;
   game.flash = 0;
   game.hitStop = 0;
+  touchState.left = touchState.right = touchState.block = false;
+  touchEdge.melee = touchEdge.shot = false;
 }
 
 /* =========================================================
@@ -710,16 +778,56 @@ window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; }
 
 function playerInput(){
   return {
-    left : !!(keys.KeyA || keys.ArrowLeft),
-    right: !!(keys.KeyD || keys.ArrowRight),
-    melee: !!(pressed.KeyJ || pressed.KeyZ || pressed.Space),
-    shot : !!(pressed.KeyK || pressed.KeyX),
-    block: !!(keys.KeyL || keys.KeyC || keys.ShiftLeft || keys.ShiftRight)
+    left : !!(keys.KeyA || keys.ArrowLeft || touchState.left),
+    right: !!(keys.KeyD || keys.ArrowRight || touchState.right),
+    melee: !!(pressed.KeyJ || pressed.KeyZ || pressed.Space || touchEdge.melee),
+    shot : !!(pressed.KeyK || pressed.KeyX || touchEdge.shot),
+    block: !!(keys.KeyL || keys.KeyC || keys.ShiftLeft || keys.ShiftRight || touchState.block)
   };
 }
 function clearEdges(){
   for (const k in pressed) delete pressed[k];
+  touchEdge.melee = false;
+  touchEdge.shot = false;
 }
+
+/* ---- 触屏：虚拟按键 + 点屏重开 ---- */
+(function bindPad(){
+  const pad = document.getElementById('pad');
+  if (!pad) return;
+  pad.querySelectorAll('[data-act]').forEach(btn => {
+    const act = btn.dataset.act;
+    const press = e => {
+      e.preventDefault();
+      unlockAudio();
+      btn.classList.add('on');
+      if (act === 'left')       touchState.left = true;
+      else if (act === 'right') touchState.right = true;
+      else if (act === 'block') touchState.block = true;
+      else if (act === 'melee') touchEdge.melee = true;
+      else if (act === 'shot')  touchEdge.shot = true;
+      try { btn.setPointerCapture(e.pointerId); } catch(err){}
+    };
+    const release = () => {
+      btn.classList.remove('on');
+      if (act === 'left')       touchState.left = false;
+      else if (act === 'right') touchState.right = false;
+      else if (act === 'block') touchState.block = false;
+    };
+    btn.addEventListener('pointerdown', press, { passive:false });
+    btn.addEventListener('pointerup', release);
+    btn.addEventListener('pointercancel', release);
+    btn.addEventListener('lostpointercapture', release);
+    btn.addEventListener('contextmenu', e => e.preventDefault());
+  });
+})();
+
+// 触屏点击画面：游戏结束后重开 / 点击解锁音频
+canvas.addEventListener('pointerdown', () => {
+  unlockAudio();
+  if (game.state === 'over' && game.overT > 40) reset();
+});
+canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 /* =========================================================
    12. 渲染：机甲（全部由像素矩形程序生成）
@@ -1002,7 +1110,7 @@ function drawOverlay(){
       const blink = 0.45 + 0.55 * Math.abs(Math.sin(game.overT * 0.06));
       ctx.globalAlpha = blink;
       ctx.fillStyle = '#a9c6da';
-      ctx.fillText('PRESS  R  TO  RETRY', W / 2, 128);
+      ctx.fillText(IS_TOUCH ? 'TAP  TO  RETRY' : 'PRESS  R  TO  RETRY', W / 2, 128);
       ctx.globalAlpha = 1;
     }
   }
